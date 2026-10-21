@@ -150,17 +150,23 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       PYTHONPATH: /opt/airflow
     volumes:
-      - .:/opt/airflow
+      - ./airflow/dags:/opt/airflow/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./datasets:/opt/airflow/datasets
+      - ./models:/opt/airflow/models
+      - ./reports:/opt/airflow/reports
+      - airflow_logs:/opt/airflow/logs
     depends_on:
       airflow-db:
         condition: service_healthy
     ports:
       - "8080:8080"
     command: >
-      bash -lc "airflow db init &&
+      bash -lc "airflow db migrate &&
       airflow scheduler >/tmp/airflow-scheduler.log 2>&1 &
       exec airflow webserver"
 
 volumes:
   postgres_data:
   airflow_db_data:
+  airflow_logs:
