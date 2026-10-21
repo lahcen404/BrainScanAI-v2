@@ -1,0 +1,50 @@
+# Git and local IDE files
+.git
+.gitignore
+.vscode
+.idea
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+*.egg-info/
+
+# Machine-learning datasets and generated models
+datasets/
+models/
+reports/
+mlflow/
+artifacts/
+
+# Logs, temporary files, and local databases
+*.log
+*.tmp
+*.temp
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker Compose files are used by the host, not required in images
+compose.yaml
+docker-compose.yml
+
+# Documentation and test coverage output
+README*
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
