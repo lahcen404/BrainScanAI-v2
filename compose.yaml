@@ -163,6 +163,14 @@ services:
       - "8080:8080"
     command: >
       bash -lc "airflow db migrate &&
+      (airflow users list | grep -qE '(^|[[:space:]])admin([[:space:]]|$)' ||
+      airflow users create
+      --username admin
+      --firstname Admin
+      --lastname User
+      --role Admin
+      --email lahcen.maskour2003@gmail.com
+      --password admin) &&
       airflow scheduler >/tmp/airflow-scheduler.log 2>&1 &
       exec airflow webserver"
 
