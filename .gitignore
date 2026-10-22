@@ -11,3 +11,4 @@ mlflow/
 .DS_Store
 datasets/**
 .venv~deactivate/
+data/
