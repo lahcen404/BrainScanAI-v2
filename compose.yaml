@@ -1,0 +1,180 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: "${PROJECT_NAME}-postgres"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:8.11
+    container_name: "${PROJECT_NAME}-pgadmin"
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mlflow
+    container_name: "${PROJECT_NAME}-mlflow"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_BACKEND_STORE_URI: sqlite:////mlflow/mlflow.db
+      MLFLOW_ARTIFACTS_URI: file:///artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow:/mlflow
+      - ./artifacts:/artifacts
+    command: >
+      bash -lc "mkdir -p /mlflow /artifacts &&
+      mlflow db upgrade sqlite:////mlflow/mlflow.db &&
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /artifacts
+      --serve-artifacts"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: "${PROJECT_NAME}-api"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      API_URL: ${API_URL}
+      MODEL_DIR: /app/models
+      DATASET_DIR: /app/datasets
+    volumes:
+      - ./api:/app/api
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./datasets:/app/datasets
+      - ./reports:/app/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    command: >
+      bash -lc "uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: "${PROJECT_NAME}-streamlit"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      API_URL: ${API_URL}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+    volumes:
+      - ./app:/app/app
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./datasets:/app/datasets
+    depends_on:
+      api:
+        condition: service_started
+    command: >
+      bash -lc "streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501"
+    ports:
+      - "8501:8501"
+
+  airflow-db:
+    image: postgres:16
+    container_name: "${PROJECT_NAME}-airflow-db"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AIRFLOW_DB_NAME}
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+    volumes:
+      - airflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  airflow:
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: "${PROJECT_NAME}-airflow"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/airflow/dags
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-db:5432/${AIRFLOW_DB_NAME}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-brainscanai-jwt-secret}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PYTHONPATH: /opt/airflow
+    volumes:
+      - ./airflow/dags:/opt/airflow/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./datasets:/opt/airflow/datasets
+      - ./models:/opt/airflow/models
+      - ./reports:/opt/airflow/reports
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    command: >
+      bash -lc "airflow db migrate &&
+      (airflow users list | grep -qE '(^|[[:space:]])admin([[:space:]]|$)' ||
+      airflow users create
+      --username admin
+      --firstname Admin
+      --lastname User
+      --role Admin
+      --email lahcen.maskour2003@gmail.com
+      --password admin) &&
+      airflow scheduler >/tmp/airflow-scheduler.log 2>&1 &
+      exec airflow webserver"
+
+volumes:
+  postgres_data:
+  airflow_db_data:
+  airflow_logs:

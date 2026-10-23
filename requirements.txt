@@ -1,0 +1,17 @@
+
+tensorflow
+ultralytics
+fastapi
+uvicorn[standard]
+streamlit
+requests
+python-multipart
+pillow
+opencv-python-headless
+numpy<2.2
+pandas
+scikit-learn
+matplotlib
+seaborn
+mlflow
+psycopg2-binary

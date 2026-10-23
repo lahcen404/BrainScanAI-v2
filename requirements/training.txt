@@ -1,0 +1,10 @@
+tensorflow
+ultralytics
+opencv-python-headless
+pillow
+numpy<2.2
+pandas
+scikit-learn
+matplotlib
+seaborn
+mlflow
