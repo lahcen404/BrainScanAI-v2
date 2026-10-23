@@ -13,3 +13,4 @@ datasets/**
 .venv~deactivate/
 data/
 models/
+data/
