@@ -1,5 +1,7 @@
 
 .env
+.env.*
+!.env.example
 .venv/
 __pycache__/
 *.py[cod]
@@ -7,3 +9,8 @@ artifacts/
 mlflow/
 *.log
 .DS_Store
+datasets/**
+.venv~deactivate/
+data/
+models/
+data/
