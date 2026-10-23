@@ -12,3 +12,4 @@ mlflow/
 datasets/**
 .venv~deactivate/
 data/
+models/
