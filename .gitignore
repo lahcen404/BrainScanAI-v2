@@ -12,5 +12,6 @@ mlflow/
 datasets/**
 .venv~deactivate/
 data/
+runs/detect/test_predictions/
 models/
 data/
