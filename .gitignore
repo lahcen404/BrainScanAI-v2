@@ -17,5 +17,3 @@ runs/detect/test_predictions-2/
 models/
 data/
 runs/detect/test_predictions-*/
-
-runs/detect/test_predictions-*/
