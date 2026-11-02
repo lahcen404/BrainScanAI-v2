@@ -136,6 +136,8 @@ services:
       dockerfile: airflow/Dockerfile
     container_name: "${PROJECT_NAME}-airflow"
     restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID:-966}"
     env_file:
       - .env
     environment:
@@ -149,6 +151,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      API_CONTAINER_NAME: "${PROJECT_NAME}-api"
       PYTHONPATH: /opt/airflow
     volumes:
       - ./airflow/dags:/opt/airflow/airflow/dags
@@ -157,9 +160,12 @@ services:
       - ./models:/opt/airflow/models
       - ./reports:/opt/airflow/reports
       - airflow_logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       airflow-db:
         condition: service_healthy
+      api:
+        condition: service_started
     ports:
       - "8080:8080"
     command: >

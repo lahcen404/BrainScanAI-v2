@@ -4,13 +4,15 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-from src.tracking.mlflow_tracker import log_experiment
-
-
 def evaluate_yolo(
-    model_path="models/detection/best.pt",
-    dataset_yaml="datasets/detection_yolo/data_local.yaml",
+    model_path=None,
+    dataset_yaml=None,
 ):
+    root_dir = Path(__file__).resolve().parents[2]
+    model_path = Path(model_path or root_dir / "models/detection/best.pt")
+    dataset_yaml = Path(
+        dataset_yaml or root_dir / "datasets/detection_yolo/data.yaml"
+    )
     # 1. Validate paths
     model_path = Path(model_path)
     dataset_yaml = Path(dataset_yaml)
@@ -39,7 +41,7 @@ def evaluate_yolo(
     }
 
     # 5. Save test metrics to CSV
-    results_dir = Path("results")
+    results_dir = root_dir / "reports" / "detection"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = results_dir / "yolov8_test_metrics.csv"
@@ -60,21 +62,6 @@ def evaluate_yolo(
             "mAP50": metrics["mAP50"],
             "mAP50-95": metrics["mAP50_95"],
         })
-
-    # 6. Log test results and artifacts to MLflow
-    log_experiment(
-        experiment_name="BrainScanAI-Detection",
-        run_name="YOLOv8n-test-evaluation",
-        params={
-            "model_path": str(model_path),
-            "dataset_split": "test",
-        },
-        metrics=metrics,
-        artifacts=[
-            str(model_path),
-            str(csv_path),
-        ],
-    )
 
     print("YOLOv8 test evaluation completed!")
     print(f"Results saved to: {csv_path}")
