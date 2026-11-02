@@ -16,7 +16,7 @@ import numpy as np
 import tensorflow as tf
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from tensorflow.keras.applications.inception_v3 import preprocess_input
 
 
@@ -231,6 +231,123 @@ def prepare_classification_image(image: Image.Image):
     return image_array
 
 
+def load_detection_font(font_size: int):
+    """Load a bold font for readable detection labels."""
+
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]
+
+    for font_path in font_paths:
+        if os.path.exists(font_path):
+            try:
+                return ImageFont.truetype(
+                    font_path,
+                    font_size
+                )
+            except OSError:
+                continue
+
+    return ImageFont.load_default()
+
+
+def draw_detections(
+    image: Image.Image,
+    detections: list
+) -> Image.Image:
+    """
+    Draw high-quality bounding boxes and readable labels
+    without changing the original image dimensions.
+    """
+
+    image = image.copy().convert("RGB")
+
+    draw = ImageDraw.Draw(image)
+
+    image_width, image_height = image.size
+
+    # Adapt annotation size to the image resolution.
+    scale = min(image_width, image_height)
+
+    line_width = max(3, round(scale / 250))
+    font_size = max(20, round(scale / 25))
+    padding = max(6, round(font_size / 5))
+
+    font = load_detection_font(font_size)
+
+    for detection in detections:
+        x1, y1, x2, y2 = detection["bbox"]
+
+        x1 = max(0, min(image_width - 1, round(x1)))
+        y1 = max(0, min(image_height - 1, round(y1)))
+        x2 = max(0, min(image_width - 1, round(x2)))
+        y2 = max(0, min(image_height - 1, round(y2)))
+
+        class_name = str(detection["class_name"])
+        confidence = float(detection["confidence"])
+
+        label = f"{class_name}: {confidence:.1%}"
+
+        # Draw the bounding box.
+        draw.rectangle(
+            (x1, y1, x2, y2),
+            outline="#FF2020",
+            width=line_width
+        )
+
+        # Calculate label dimensions.
+        text_box = draw.textbbox(
+            (0, 0),
+            label,
+            font=font
+        )
+
+        text_width = text_box[2] - text_box[0]
+        text_height = text_box[3] - text_box[1]
+
+        label_width = text_width + (padding * 2)
+        label_height = text_height + (padding * 2)
+
+        # Place the label above the box when possible.
+        label_y = y1 - label_height
+
+        # If there isn't enough room, place it inside the box.
+        if label_y < 0:
+            label_y = y1
+
+        # Prevent the label from going outside the image.
+        label_x = min(
+            x1,
+            max(0, image_width - label_width)
+        )
+
+        # Draw a solid red label background.
+        draw.rectangle(
+            (
+                label_x,
+                label_y,
+                label_x + label_width,
+                label_y + label_height
+            ),
+            fill="#FF2020"
+        )
+
+        # Draw bold white text.
+        draw.text(
+            (
+                label_x + padding,
+                label_y + padding - text_box[1]
+            ),
+            label,
+            fill="white",
+            font=font
+        )
+
+    return image
+
+
 @app.get("/")
 def root():
     return {
@@ -352,32 +469,20 @@ async def predict_detection(
 
         detections = json.loads(detection_process.stdout)
 
-        annotated_image = image.copy()
-        draw = ImageDraw.Draw(annotated_image)
-
-        for detection in detections:
-            x1, y1, x2, y2 = detection["bbox"]
-
-            class_name = detection["class_name"]
-            confidence = detection["confidence"]
-
-            draw.rectangle(
-                [x1, y1, x2, y2],
-                outline="red",
-                width=3
-            )
-
-            draw.text(
-                (x1, max(0, y1 - 15)),
-                f"{class_name}: {confidence:.2%}",
-                fill="red"
-            )
+        # Generate high-quality annotations.
+        annotated_image = draw_detections(
+            image,
+            detections
+        )
 
         image_buffer = BytesIO()
 
         annotated_image.save(
             image_buffer,
-            format="JPEG"
+            format="JPEG",
+            quality=95,
+            subsampling=0,
+            optimize=True
         )
 
         encoded_image = base64.b64encode(
