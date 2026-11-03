@@ -4,6 +4,7 @@ python-multipart
 pillow
 opencv-python-headless
 numpy<2.2
-tensorflow
-ultralytics
-mlflow
+tensorflow==2.21.0
+ultralytics==8.4.183
+mlflow==3.17.2
+pandas==3.0.6

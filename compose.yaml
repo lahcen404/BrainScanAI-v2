@@ -39,6 +39,7 @@ services:
     env_file:
       - .env
     environment:
+      MLFLOW_SERVER_ALLOWED_HOSTS: "mlflow:5000,localhost:5000,127.0.0.1:5000"
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       MLFLOW_BACKEND_STORE_URI: sqlite:////mlflow/mlflow.db
       MLFLOW_ARTIFACTS_URI: file:///artifacts
@@ -85,7 +86,7 @@ services:
       mlflow:
         condition: service_started
     command: >
-      bash -lc "uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload"
+      bash -lc "uvicorn api.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
 
@@ -135,6 +136,8 @@ services:
       dockerfile: airflow/Dockerfile
     container_name: "${PROJECT_NAME}-airflow"
     restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID:-966}"
     env_file:
       - .env
     environment:
@@ -148,6 +151,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      API_CONTAINER_NAME: "${PROJECT_NAME}-api"
       PYTHONPATH: /opt/airflow
     volumes:
       - ./airflow/dags:/opt/airflow/airflow/dags
@@ -156,9 +160,12 @@ services:
       - ./models:/opt/airflow/models
       - ./reports:/opt/airflow/reports
       - airflow_logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       airflow-db:
         condition: service_healthy
+      api:
+        condition: service_started
     ports:
       - "8080:8080"
     command: >
